@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ギア比">
+<title>ギア比計算</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE: 走りながら見る計器。短く、迷わず、数字が主役
+   IDEA: レースゼッケンとサイコン画面
+   PICTURE: 全組み合わせの表そのもの。上に小さなゼッケン型の結果バー（スクロールしても上に残る）
+   COLOUR and TYPE: 白地・墨・ゼッケンの赤 #e10600、夜はアスファルト。Barlow Condensed＋Noto Sans JP
+   LAYOUT: 結果バー→ケイデンスと勾配→表→機材設定 */
+:root{color-scheme:light dark;--bg:light-dark(#ffffff,#121417);--ink:light-dark(#111214,#f2f2f0);--sub:light-dark(#5d6168,#a3a8b0);--line:light-dark(#e3e4e6,#2a2e34);--card:light-dark(#f4f4f2,#1b1e22);--red:#e10600}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Noto Sans JP",system-ui,sans-serif;overflow-x:clip}
+.wrap{max-width:1100px;margin:0 auto;padding:0 max(4vw,12px)}
+header{padding:14px 0 8px}
+h1{font:800 26px/1.05 "Barlow Condensed","Noto Sans JP",sans-serif;margin:0}
+h1 b{color:var(--red)}
+.bib{position:sticky;top:0;z-index:5;background:var(--red);color:#fff;border-radius:0 0 12px 12px;padding:10px 14px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 16px;align-items:end;box-shadow:0 4px 14px rgba(0,0,0,.15)}
+.combo{grid-column:1/-1;font:600 16px/1.1 "Barlow Condensed",sans-serif;opacity:.92}
+.speed{font:800 46px/.95 "Barlow Condensed",sans-serif;white-space:nowrap}
+.speed small,.watt small{font-size:15px;font-weight:600;margin-left:3px}
+.stats{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:2px 16px;text-align:right}
+.stats div{font-size:11px;line-height:1.2;opacity:.95}
+.stats b{display:block;font:800 22px/1.05 "Barlow Condensed",sans-serif;white-space:nowrap}
+.stats .watt b{font-size:30px}
+.quick{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 20px;margin-top:12px}
+label{display:block;font-size:13px;font-weight:700;color:var(--sub);margin-bottom:4px}
+.row{display:flex;align-items:center;gap:10px}
+.row input[type=range]{flex:1;accent-color:var(--red);height:40px}
+.row input[type=number]{width:78px;flex:none;text-align:right}
+select,input[type=text],input[type=number]{width:100%;font:16px "Noto Sans JP",sans-serif;color:var(--ink);background:var(--bg);border:1.5px solid var(--line);border-radius:10px;min-height:44px;padding:8px 10px}
+select:focus-visible,input:focus-visible,button:focus-visible{outline:3px solid var(--red);outline-offset:2px}
+.tabs{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;flex-wrap:wrap}
+.seg{display:inline-flex;background:var(--card);border-radius:10px;padding:3px}
+.seg button{all:unset;cursor:pointer;min-height:38px;padding:0 16px;border-radius:8px;font-weight:700;font-size:14px;color:var(--sub);display:flex;align-items:center}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--bg)}
+.legend{font-size:12px;color:var(--sub)}
+.scroll{overflow-x:auto}
+table{border-collapse:separate;border-spacing:4px;width:100%;margin-top:2px}
+th{font:600 15px "Barlow Condensed",sans-serif;color:var(--sub);text-align:right;padding:2px 6px;white-space:nowrap}
+thead th{text-align:center;font-size:18px;color:var(--ink)}
+td{padding:0}
+table{width:auto;min-width:100%}
+tbody th,thead th:first-child{position:sticky;left:0;z-index:1;background:var(--bg);text-align:right}
+td button{all:unset;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:3px;width:100%;min-width:42px;padding:8px 3px 6px;border-radius:7px;cursor:pointer;background:var(--cell);color:var(--ink);text-align:center}
+td button .s{font:800 20px/1 "Barlow Condensed",sans-serif;white-space:nowrap}
+td button .r{font:600 13px/1 "Barlow Condensed",sans-serif;color:var(--sub);white-space:nowrap}
+.swipe{display:none;font-size:12px;color:var(--sub)}
+.over .swipe{display:inline}
+td button{position:relative}
+td button.x{opacity:.4}td button.x.on{opacity:.75}
+td button.on{background:var(--red);color:#fff}
+td button.on .r{color:#fff}
+td button:focus-visible{outline:3px solid var(--ink);outline-offset:1px}
+h2{font:800 22px/1.1 "Barlow Condensed","Noto Sans JP",sans-serif;margin:28px 0 10px}
+.ctrl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 20px}
+.pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:8px}
+.err{color:var(--red);font-size:13px;margin:2px 0 0;min-height:1em}
+.note{font-size:13px;color:var(--sub);margin:14px 0 36px}
+@media(max-width:600px){
+header{padding:8px 0 4px}h1{font-size:20px}
+.bib{padding:6px 12px 8px;gap:0 10px}.combo{font-size:14px}
+.speed{font-size:34px}.speed small{font-size:13px}
+.stats{flex-wrap:nowrap;gap:0 10px}.stats div{font-size:10px}.stats b{font-size:18px}.stats .watt b{font-size:22px}
+.quick{gap:4px 12px;margin-top:8px}.quick label{font-size:12px;margin-bottom:0}
+.row{gap:6px}.row input[type=range]{height:36px}.row input[type=number]{width:58px;padding:6px;min-height:38px}
+.tabs{margin-top:4px}.seg button{min-height:34px;padding:0 14px}
+.ctrl{grid-template-columns:minmax(0,1fr)}
+table{border-spacing:3px}th{font-size:14px;padding:2px 4px}thead th{font-size:16px}
+td button{min-width:36px;padding:8px 2px 6px}td button .s{font-size:18px}td button .r{font-size:12px}
+}
+@media(max-width:400px){.stats div:last-child{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>ギア比<b>計算</b></h1></header>
+
+  <div class="bib" aria-live="polite">
+    <div class="combo" id="combo">50T × 17T</div>
+    <div class="speed" id="speed">0<small>km/h</small></div>
+    <div class="stats">
+      <div class="watt">必要パワー<b id="watt">–</b></div>
+      <div>W/kg<b id="wkg">–</b></div>
+      <div>ギア比<b id="ratio">–</b></div>
+      <div>1回転<b id="dev">–</b></div>
+    </div>
+  </div>
+
+  <div class="quick">
+    <div>
+      <label for="cr">ケイデンス（rpm）</label>
+      <div class="row"><input id="cr" type="range" min="40" max="140" step="1"><input id="cn" type="number" inputmode="numeric" min="20" max="200" aria-label="ケイデンスの数値"></div>
+    </div>
+    <div>
+      <label for="gr">勾配（%）</label>
+      <div class="row"><input id="gr" type="range" min="0" max="20" step="0.5"><input id="gn" type="number" inputmode="decimal" min="0" max="30" step="0.5" aria-label="勾配の数値"></div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="seg" role="group" aria-label="表の表示">
+      <button id="mS" aria-pressed="true">速度</button>
+      <button id="mP" aria-pressed="false">パワー</button>
+    </div>
+    <span class="legend" id="leg"></span>
+  </div>
+  <div class="scroll" id="sc"><table id="tbl"></table></div>
+  <p class="legend"><span class="swipe">表は横にスクロールできます。</span>薄いマスはたすき掛け（アウター×大きいコグ2枚、インナー×小さいコグ2枚）です。マスをタップすると上のバーに詳しく出ます。</p>
+
+  <h2>機材と体重</h2>
+  <div class="ctrl">
+    <div>
+      <label for="fp">フロント（チェーンリング）</label>
+      <div class="pair"><select id="fp"></select><input id="ft" type="text" inputmode="numeric" placeholder="50,34"></div>
+      <p class="err" id="fe"></p>
+    </div>
+    <div>
+      <label for="rp">リア（スプロケット）</label>
+      <div class="pair"><select id="rp"></select><input id="rt" type="text" inputmode="numeric" placeholder="11,12,13…"></div>
+      <p class="err" id="re"></p>
+    </div>
+    <div>
+      <label for="tire">タイヤ</label>
+      <select id="tire"></select>
+    </div>
+    <div>
+      <label for="circ">周長（mm）</label>
+      <input id="circ" type="number" inputmode="numeric" min="1500" max="2500">
+    </div>
+    <div>
+      <label for="wr">体重（kg）</label>
+      <input id="wr" type="number" inputmode="decimal" min="20" max="200" step="0.1">
+    </div>
+    <div>
+      <label for="wb">バイク＋装備（kg）</label>
+      <input id="wb" type="number" inputmode="decimal" min="3" max="40" step="0.1">
+    </div>
+    <div>
+      <label for="wind">向かい風（m/s、追い風はマイナス）</label>
+      <input id="wind" type="number" inputmode="decimal" min="-15" max="15" step="0.5">
+    </div>
+  </div>
+  <p class="note">パワーは舗装路での目安です。転がり抵抗係数 0.004、空気抵抗 CdA 0.32 m²（ブラケットを持った姿勢）、空気密度 1.2 kg/m³、駆動ロス 3% で計算しています。設定はこの端末に保存されます。</p>
+</div>
+
+<script>
+{
+const FRONT=[["50/34（コンパクト）","50,34"],["52/36（セミコンパクト）","52,36"],["53/39（ノーマル）","53,39"],["48/35","48,35"],["46/33","46,33"],["48/31","48,31"],["46/30","46,30"],["1×（40T）","40"],["1×（42T）","42"],["1×（44T）","44"],["カスタム",""]];
+const REAR=[
+["シマノ 11-30（12速）","11,12,13,14,15,16,17,19,21,24,27,30"],
+["シマノ 11-34（12速）","11,12,13,14,15,17,19,21,24,27,30,34"],
+["シマノ 11-36（12速・105）","11,12,13,14,15,17,19,21,24,28,32,36"],
+["スラム 10-28（12速）","10,11,12,13,14,15,16,17,19,21,24,28"],
+["スラム 10-33（12速）","10,11,12,13,14,15,17,19,21,24,28,33"],
+["スラム 10-36（12速）","10,11,12,13,15,17,19,21,24,28,32,36"],
+["カンパ 11-29（12速）","11,12,13,14,15,16,17,19,21,23,26,29"],
+["カンパ 11-32（12速）","11,12,13,14,15,16,17,19,22,25,28,32"],
+["カンパ 11-34（12速）","11,12,13,14,15,16,17,19,22,25,29,34"],
+["11-25（11速）","11,12,13,14,15,16,17,19,21,23,25"],
+["12-25（11速）","12,13,14,15,16,17,18,19,21,23,25"],
+["11-28（11速）","11,12,13,14,15,17,19,21,23,25,28"],
+["11-30（11速）","11,12,13,14,15,17,19,21,24,27,30"],
+["11-32（11速）","11,12,13,14,16,18,20,22,25,28,32"],
+["11-34（11速）","11,13,15,17,19,21,23,25,27,30,34"],
+["カスタム",""]];
+const TIRE=[["700×23C",2096],["700×25C",2105],["700×28C",2136],["700×30C",2146],["700×32C",2155],["700×35C",2168],["700×38C",2180],["700×40C",2200],["650B×47",2079],["カスタム",0]];
+const CRR=0.004,CDA=0.32,RHO=1.2,EFF=0.97,G=9.81;
+const $=id=>document.getElementById(id);
+const st={f:"50,34",r:"11,12,13,14,15,16,17,19,21,24,27,30",circ:2105,cad:90,grade:0,wr:65,wb:9,wind:2,mode:"s",sel:[0,6]};
+try{Object.assign(st,JSON.parse(localStorage.getItem("gearcalc")||"{}"))}catch(e){}
+const save=()=>{try{localStorage.setItem("gearcalc",JSON.stringify(st))}catch(e){}};
+const parse=s=>String(s).split(/[^0-9]+/).map(Number).filter(n=>n>=6&&n<=80);
+const opts=(el,list)=>{el.innerHTML=list.map((o,i)=>`<option value="${i}">${o[0]}</option>`).join("")};
+opts($("fp"),FRONT);opts($("rp"),REAR);opts($("tire"),TIRE);
+const TIRE_S=TIRE.map(t=>[t[0],String(t[1])]);
+const matchPreset=(list,val)=>{const i=list.findIndex(o=>o[1]===val);return i<0?list.length-1:i};
+const kmh=(f,r)=>f/r*st.circ/1000*st.cad*60/1000;
+const watts=v=>{const ms=v/3.6,th=Math.atan(st.grade/100),m=st.wr+st.wb;return Math.max(0,(m*G*(Math.sin(th)+CRR*Math.cos(th))*ms+0.5*RHO*CDA*(ms+st.wind)*Math.abs(ms+st.wind)*ms)/EFF)};
+const fx=(n,d)=>n.toFixed(d);
+
+function syncInputs(){
+  $("ft").value=st.f;$("rt").value=st.r;
+  $("fp").value=matchPreset(FRONT,st.f);$("rp").value=matchPreset(REAR,st.r);
+  $("circ").value=st.circ;$("tire").value=matchPreset(TIRE_S,String(st.circ));
+  $("cr").value=Math.min(140,Math.max(40,st.cad));$("cn").value=st.cad;
+  $("gr").value=Math.min(20,st.grade);$("gn").value=st.grade;
+  $("wr").value=st.wr;$("wb").value=st.wb;$("wind").value=st.wind;
+}
+
+function render(){
+  const F=parse(st.f).sort((a,b)=>b-a),R=parse(st.r).sort((a,b)=>a-b);
+  $("fe").textContent=F.length?"":"歯数を入力してください";
+  $("re").textContent=R.length?"":"歯数を入力してください";
+  $("mS").setAttribute("aria-pressed",st.mode==="s");$("mP").setAttribute("aria-pressed",st.mode==="p");
+  $("leg").textContent=st.mode==="s"?"上段：速度（km/h）　下段：ギア比":`上段：必要パワー（W）　下段：速度（km/h）`;
+  if(!F.length||!R.length){$("tbl").innerHTML="";return}
+  let [fi,ri]=st.sel;fi=Math.min(fi,F.length-1);ri=Math.min(ri,R.length-1);st.sel=[fi,ri];
+  const val=(f,r)=>st.mode==="s"?kmh(f,r):watts(kmh(f,r));
+  const all=F.flatMap(f=>R.map(r=>val(f,r))),mx=Math.max(...all),mn=Math.min(...all);
+  const head=`<thead><tr><th></th>${R.map(r=>`<th>${r}T</th>`).join("")}</tr></thead>`;
+  const body=F.map((f,i)=>`<tr><th>${f}T</th>${R.map((r,j)=>{
+    const v=kmh(f,r),w=watts(v),t=mx>mn?(val(f,r)-mn)/(mx-mn):0,cross=F.length>1&&((i===0&&j>=R.length-2)||(i===F.length-1&&j<=1));
+    const main=st.mode==="s"?fx(v,1):Math.round(w);
+    const sub=st.mode==="s"?fx(f/r,2):fx(v,1);
+    return `<td><button data-i="${i}" data-j="${j}" class="${i===fi&&j===ri?"on":""}${cross?" x":""}" style="--cell:var(--card)" aria-label="${f}×${r}、${fx(v,1)}km/h、${Math.round(w)}W"><span class="s">${main}</span><span class="r">${sub}</span></button></td>`}).join("")}</tr>`).join("");
+  $("tbl").innerHTML=head+"<tbody>"+body+"</tbody>";
+  $("sc").classList.toggle("over",$("sc").scrollWidth>$("sc").clientWidth+2);
+  const f=F[fi],r=R[ri],v=kmh(f,r),w=watts(v);
+  const xsel=F.length>1&&((fi===0&&ri>=R.length-2)||(fi===F.length-1&&ri<=1));
+  $("combo").textContent=`${f}T × ${r}T${xsel?"（たすき掛け）":""} ・ ${st.cad}rpm ・ 勾配${st.grade}% ・ ${st.wind>=0?"向かい風":"追い風"}${Math.abs(st.wind)}m/s`;
+  $("speed").innerHTML=`${fx(v,1)}<small>km/h</small>`;
+  $("watt").innerHTML=`${Math.round(w)}<small style="font-size:14px">W</small>`;
+  $("wkg").textContent=st.wr>0?fx(w/st.wr,1):"–";
+  $("ratio").textContent=fx(f/r,2);
+  $("dev").textContent=fx(f/r*st.circ/1000,2)+"m";
+  save();
+}
+
+const num=(el,lo,hi,key,after)=>el.addEventListener("input",e=>{const c=parseFloat(e.target.value);if(c>=lo&&c<=hi){st[key]=c;after&&after(c);render()}});
+$("fp").addEventListener("change",e=>{const v=FRONT[e.target.value][1];if(v){st.f=v;$("ft").value=v}else $("ft").focus();render()});
+$("rp").addEventListener("change",e=>{const v=REAR[e.target.value][1];if(v){st.r=v;$("rt").value=v}else $("rt").focus();render()});
+$("ft").addEventListener("input",e=>{st.f=e.target.value;$("fp").value=matchPreset(FRONT,st.f);render()});
+$("rt").addEventListener("input",e=>{st.r=e.target.value;$("rp").value=matchPreset(REAR,st.r);render()});
+$("tire").addEventListener("change",e=>{const c=TIRE[e.target.value][1];if(c){st.circ=c;$("circ").value=c}else $("circ").focus();render()});
+num($("circ"),1500,2500,"circ",c=>{$("tire").value=matchPreset(TIRE_S,String(c))});
+num($("cr"),40,140,"cad",c=>{$("cn").value=c});
+num($("cn"),20,200,"cad",c=>{$("cr").value=Math.min(140,Math.max(40,c))});
+num($("gr"),0,20,"grade",c=>{$("gn").value=c});
+num($("gn"),0,30,"grade",c=>{$("gr").value=Math.min(20,c)});
+num($("wr"),20,200,"wr");
+num($("wb"),3,40,"wb");
+num($("wind"),-15,15,"wind");
+const ro=new ResizeObserver(()=>$("sc").classList.toggle("over",$("sc").scrollWidth>$("sc").clientWidth+2));ro.observe($("sc"));
+$("mS").addEventListener("click",()=>{st.mode="s";render()});
+$("mP").addEventListener("click",()=>{st.mode="p";render()});
+$("tbl").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;st.sel=[+b.dataset.i,+b.dataset.j];render()});
+
+syncInputs();render();
+}
+</script>
+</body>
+</html>
